@@ -151,6 +151,8 @@ firms_data = pd.DataFrame([{
 print(firms_data.head())
 x = generate_features(firms_data.iloc[0].to_dict())
 model_testing.predict(x)
+
+
 app = Flask(__name__)
 
 @app.route('/')
