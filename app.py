@@ -11,7 +11,7 @@ import os
 
 app = Flask(__name__)
 
-API_KEY = "4022da14d11859bbc865df890e2ab6af"
+API_KEY = os.getenv("API_KEY")
 
 # ------------------------
 # Load model
