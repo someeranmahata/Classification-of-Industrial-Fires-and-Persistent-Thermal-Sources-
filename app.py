@@ -1,44 +1,60 @@
-from flask import Flask, render_template
+from flask import Flask, render_template, jsonify, request
 import pickle
 import pandas as pd
 import numpy as np
+import requests
 from sklearn.neighbors import BallTree
 from xgboost import XGBClassifier
+import os
+from io import StringIO
 
-# persistence lookup
+
+# df2 = pd.read_csv('final_dataset.csv')
+# fire = df2[df2["label"] == "industrial_fire"].sample(5)
+# print("fire",fire.shape)
+
+
+
+app = Flask(__name__)
+
+API_KEY = "4022da14d11859bbc865df890e2ab6af"
+
+# ------------------------
+# Load model
+# ------------------------
+
+model = XGBClassifier()
+model.load_model('industrial_fire_model.json')
+
 with open("history_lookup.pkl", "rb") as f:
     history_dict = pickle.load(f)
 
-with open("industrial_fire_model.pkl", "rb") as f:
-    model_testing = pickle.load(f)
-
-# industries
 industry_df = pd.read_csv("industry_locations.csv")
 
 industry_tree = BallTree(
-    np.radians(industry_df[["latitude", "longitude"]]),
+    np.radians(
+        industry_df[["latitude", "longitude"]]
+    ),
     metric="haversine"
 )
 
-def generate_features(firms_data):
+# ------------------------
+# Feature generation
+# ------------------------
 
-    lat = firms_data["latitude"]
-    lon = firms_data["longitude"]
+def generate_features(row):
 
-    # ----------------------------------
-    # temp_diff
-    # ----------------------------------
+    lat = row["latitude"]
+    lon = row["longitude"]
+
     temp_diff = (
-        firms_data["brightness"]
-        - firms_data["bright_t31"]
+        row["brightness"]
+        - row["bright_t31"]
     )
 
-    # ----------------------------------
-    # nearest industry
-    # ----------------------------------
     point = np.radians([[lat, lon]])
 
-    dist, idx = industry_tree.query(
+    dist, _ = industry_tree.query(
         point,
         k=1
     )
@@ -51,9 +67,6 @@ def generate_features(firms_data):
         distance_to_industry <= 5
     )
 
-    # ----------------------------------
-    # persistence + detection count
-    # ----------------------------------
     persistence, detection_count = (
         history_dict.get(
             (
@@ -64,16 +77,6 @@ def generate_features(firms_data):
         )
     )
 
-    # ----------------------------------
-    # month
-    # ----------------------------------
-    month = pd.to_datetime(
-        firms_data["acq_date"]
-    ).month
-
-    # ----------------------------------
-    # confidence
-    # ----------------------------------
     confidence_map = {
         "l": 0,
         "n": 1,
@@ -81,87 +84,124 @@ def generate_features(firms_data):
     }
 
     confidence_num = confidence_map.get(
-        str(
-            firms_data["confidence"]
-        ).lower(),
+        str(row["confidence"]).lower(),
         1
     )
 
-    # ----------------------------------
-    # model dataframe
-    # ----------------------------------
-    X = pd.DataFrame([{
-        "brightness":
-            firms_data["brightness"],
+    month = pd.to_datetime(
+        row["acq_date"]
+    ).month
 
-        "bright_t31":
-            firms_data["bright_t31"],
-
-        "frp":
-            firms_data["frp"],
-
-        "temp_diff":
-            temp_diff,
-
-        "distance_to_industry":
-            distance_to_industry,
-
-        "industry_nearby":
-            industry_nearby,
-
-        "persistence":
-            persistence,
-
-        "detection_count":
-            detection_count,
-
-        "month":
-            month,
-
-        "scan":
-            firms_data["scan"],
-
-        "track":
-            firms_data["track"],
-
-        "confidence_num":
-            confidence_num
+    return pd.DataFrame([{
+        "brightness": row["brightness"],
+        "bright_t31": row["bright_t31"],
+        "frp": row["frp"],
+        "temp_diff": temp_diff,
+        "distance_to_industry": distance_to_industry,
+        "industry_nearby": industry_nearby,
+        "persistence": persistence,
+        "detection_count": detection_count,
+        "month": month,
+        "scan": row["scan"],
+        "track": row["track"],
+        "confidence_num": confidence_num
     }])
 
-    return X
-#random data from dataset for testing
-firms_data = pd.DataFrame([{
-    "latitude": 25.32909,
-    "longitude": 94.71902,
-    "brightness": 330.71,
-    "scan": 0.62,
-    "track": 0.71,
-    "acq_date": "2021-01-01",
-    "acq_time": 554,
-    "satellite": "SNPP",
-    "instrument": "SNPP",
-    "confidence": "n",
-    "version": 2,
-    "bright_t31": 289.06,
-    "frp": 6.72,
-    "daynight": "D",
-    "type": 0
-}])
+# ------------------------
+# Fetch FIRMS
+# ------------------------
 
-print(firms_data.head())
-x = generate_features(firms_data.iloc[0].to_dict())
-model_testing.predict(x)
+def fetch_firms(days):
+
+    url = (
+    f"https://firms.modaps.eosdis.nasa.gov/api/area/csv/"
+    f"{API_KEY}/"
+    f"VIIRS_NOAA21_NRT/"
+    f"68,6,98,38/"
+    f"{days}"
+)
+
+    df = pd.read_csv(url)
+    
+    df["brightness"] = df["bright_ti4"]
+    df["bright_t31"] = df["bright_ti5"]
+    
+    '''
+    df = pd.concat([df, fire], ignore_index=True )
+
+    print(df.shape)
+    '''
+    return df
 
 
-app = Flask(__name__)
+# ------------------------
+# TESTING PURPOSE
+# ------------------------
+'''
+results2=[]
+for i in range(5):
+    row = fire.iloc[i]
+    # print(row, type(row))
+    X = generate_features(
+        row.to_dict()
+       )
 
-@app.route('/')
+    pred = model.predict(X)[0]
+    print(row['longitude'], row['latitude'],pred)
+    results2.append({
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "prediction": int(pred),
+            "brightness": row["brightness"],
+            "frp": row["frp"]
+        })
+    # print(results2)
+
+'''
+
+
+
+
+    
+    
+@app.route("/")
 def home():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/about')
-def about():
-    return render_template('about.html')
+@app.route("/api/hotspots")
+def hotspots():
 
-if __name__ == '__main__':
+    days = int(
+        request.args.get("days", 1)
+    )
+
+    firms_df = fetch_firms(days)
+
+    results = []
+    print("hotspot coord: ",firms_df.shape[0])
+
+    for _, row in firms_df.iterrows():
+
+        X = generate_features(
+            row.to_dict()
+        )
+
+        pred = model.predict(X)[0]
+
+        results.append({
+            "latitude": row["latitude"],
+            "longitude": row["longitude"],
+            "prediction": int(pred),
+            "brightness": row["brightness"],
+            "frp": row["frp"]
+        })
+    
+    # print(results)
+    
+    
+    return jsonify(results)
+
+if __name__ == "__main__":
     app.run(debug=True)
+    
+

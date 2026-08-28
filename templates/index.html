@@ -1,14 +1,61 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document</title>
-    <link rel="stylesheet" href="static/style.css">
+    <title>Industrial Fire Detection</title>
+
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+
+    <link rel="stylesheet"
+          href="{{ url_for('static', filename='style.css') }}">
 </head>
+
 <body>
 
-<h2>Heyyy !!</h2>
+<div class="topbar">
+
+    <h2>
+        Industrial Fire & Persistent Thermal Source Detection
+    </h2>
+
+    <select id="days">
+        <option value="1">Last 1 Day</option>
+        <option value="2">Last 2 Days</option>
+        <option value="3">Last 3 Days</option>
+        <option value="4">Last 4 Days</option>
+        <option value="5">Last 5 Days</option>
+    </select>
+
+    <button onclick="loadHotspots()">
+        Load Hotspots
+    </button>
+
+</div>
+
+<div id="stats">
+
+    <div class="card">
+        <h3 id="industrial_count">0</h3>
+        <p>Industrial Fires</p>
+    </div>
+
+    <div class="card">
+        <h3 id="thermal_count">0</h3>
+        <p>Persistent Thermal Sources</p>
+    </div>
+
+    <div class="card">
+        <h3 id="other_count">0</h3>
+        <p>Other</p>
+    </div>
+
+</div>
+
+<div id="map"></div>
+
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
 
 </body>
 </html>
