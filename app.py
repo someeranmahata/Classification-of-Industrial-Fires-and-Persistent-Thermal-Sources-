@@ -6,12 +6,6 @@ import requests
 from sklearn.neighbors import BallTree
 from xgboost import XGBClassifier
 import os
-from io import StringIO
-
-
-# df2 = pd.read_csv('final_dataset.csv')
-# fire = df2[df2["label"] == "industrial_fire"].sample(5)
-# print("fire",fire.shape)
 
 
 
@@ -126,11 +120,7 @@ def fetch_firms(days):
     df["brightness"] = df["bright_ti4"]
     df["bright_t31"] = df["bright_ti5"]
     
-    '''
-    df = pd.concat([df, fire], ignore_index=True )
-
-    print(df.shape)
-    '''
+    
     return df
 
 
